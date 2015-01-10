@@ -21,8 +21,17 @@ class Model_GMapSurveyData extends \Model_Table {
 		$this->add('dynamic_model/Controller_AutoCreator');
 	}
 
-	function addGoogleData($latitude,$longitude,$elevation){
+	function addGoogleData($latitude,$longitude,$elevation, $allow_same_point){
 		if($this->loaded()) $this->unload();
+
+		if(!$allow_same_point){
+			$check_existing = $this->add('xCivil/Model_GMapSurveyData');
+			$check_existing->addCondition('longitude',$longitude);
+			$check_existing->addCondition('latitude',$latitude);
+			$check_existing->addCondition('elevation',$elevation);
+			$check_existing->tryLoadAny();
+			if($check_existing->loaded()) return;
+		}
 
 		$gp = $this->add('xCivil/gPoint');
 		$gp->setLongLat($longitude,$latitude);

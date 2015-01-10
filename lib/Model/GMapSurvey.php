@@ -72,32 +72,36 @@ class Model_GMapSurvey extends \Model_Table {
 		$kmlOutput = $dom->saveXML();
 
 		//assign the KML headers. 
-		header('Content-type: application/vnd.google-earth.kml+xml');
-		echo $kmlOutput;
+		
+		return str_replace("\n", "", str_replace("\\", "", $kmlOutput));
 	}
 
 	function do_survey(){
+
+		if($this->ref('xCivil/GMapSurveyData')->count()->getOne()> 0)
+			return "ALREADY HAVE DATA, PLEASE REMOVE EXISTING DATA FIRST";
+
 		$importer = new \CSVImporter(getcwd().'/../'.$this['lat_lng_file'],true,',');
 		$data = $importer->get();
-
 		$str ="";
 		// 1 = 1389.8064439857
 		// 2 = 370.62461693952
 		// 3 = 860.40874371982
-		for ($i=1; $i < count($data); $i++) { 
-			$distance = $this->calcDistance($data[$i],$data[$i-1]);
+		for ($i=0; $i < count($data)-1; $i++) { 
+			$distance = $this->calcDistance($data[$i],$data[$i+1]);
 			$samples = ceil($distance/$this['chainage']);
 			// check if going greater than 512 (google limit)
 			if($samples > 500){
 				echo $i. ' Going out of 500 range ';
 			}
 
-			$json_string = $this->getEvelvations($data[$i],$data[$i-1],$samples);
+			$json_string = $this->getEvelvations($data[$i],$data[$i+1],$samples);
+			// echo $json_string .' --- ';
 			$elevations = json_decode($json_string,true);
 			$elevations = $elevations['results'];
 
 			foreach ($elevations as $elv) {
-				$this->ref('xCivil/GMapSurveyData')->addGoogleData($elv['location']['lat'],$elv['location']['lng'],$elv['elevation']);
+				$this->ref('xCivil/GMapSurveyData')->addGoogleData($elv['location']['lat'],$elv['location']['lng'],$elv['elevation'],$allow_same_point = false);
 			}
 
 		}
@@ -111,7 +115,8 @@ class Model_GMapSurvey extends \Model_Table {
 		$point_2_lat= $this->commaToDecimal($point_2['Latitude']);
 		$point_2_lng= $this->commaToDecimal($point_2['Longitude']);
 
-		$url = "https://maps.googleapis.com/maps/api/elevation/json?path=$point_1_lat,$point_2_lng|$point_2_lat,$point_2_lng&samples=$samples";
+		$url = "https://maps.googleapis.com/maps/api/elevation/json?path=$point_1_lat,$point_1_lng|$point_2_lat,$point_2_lng&samples=$samples";
+		// return $url;
 		return file_get_contents($url);
 	}
 
